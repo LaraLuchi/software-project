@@ -19,16 +19,16 @@ M_TO_MM: float = 1000.0
 class Navigation:
 
   @staticmethod
-  def degrees_to_radians(degrees):
+  def degrees_to_radians(degrees): #para fazer os cálculos trigonométricos, o valor em graus deve ser convertido para rad
     return degrees * (math.pi / 180.0)
   
   @staticmethod
-  def radians_to_degrees(radians):
+  def radians_to_degrees(radians):    #o robô armazena o ângulo em graus
     return radians * (180.0 / math.pi)
   
   @staticmethod
-  def global_to_local_velocity(vx, vy, theta):
-    vx_local = vx * math.cos(theta) + vy * math.sin(theta)
+  def global_to_local_velocity(vx, vy, theta):  #vx e vy globais: velocidades nos eixos x e y do campo
+    vx_local = vx * math.cos(theta) + vy * math.sin(theta)  #vx e vy locais: orientação no campo
     vy_local = -vx * math.sin(theta) + vy * math.cos(theta)
     return Point(vx_local, vy_local)
 
