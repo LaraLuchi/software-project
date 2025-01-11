@@ -49,7 +49,9 @@ class SSLExampleEnv(SSLBaseEnv):
         
     def _frame_to_observations(self):
         ball, robot = self.frame.ball, self.frame.robots_blue[0]
-        return np.array([ball.x, ball.y, robot.x, robot.y])
+        observations = np.array([ball.x, ball.y, robot.x, robot.y], dtype=np.float32)
+        return observations
+
 
     def _get_commands(self, actions):
         # Keep only the last M target points

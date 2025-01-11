@@ -69,3 +69,23 @@ class Navigation:
       return target_velocity, -kp * d_theta
     else:
       return Point(0.0, 0.0), -kp * d_theta
+    
+  @staticmethod
+  def avoid_obstacle(robot: Robot, target: Point, obstacles: list[Point], min_dist: float) -> Point:
+        """Calcula um único ponto alternativo para desviar de obstáculos."""
+        robot_position = Point(robot.x, robot.y)
+
+        for obstacle in obstacles:
+            distance = robot_position.dist_to(obstacle)
+
+            # Verifica se o obstáculo está muito próximo
+            if distance < min_dist:
+                # Calcula um ponto alternativo fixo
+                vector_to_obstacle = obstacle - robot_position
+                vector_perpendicular = Point(-vector_to_obstacle.y, vector_to_obstacle.x).normalize()
+
+                # Retorna um único ponto alternativo
+                return obstacle + vector_perpendicular * min_dist
+
+        # Sem obstáculos no caminho, retorna None
+        return None
