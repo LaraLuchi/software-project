@@ -1,16 +1,14 @@
-
 import math
-import numpy as np
 from rsoccer_gym.Entities import Robot
 from utils.Point import Point
 from utils.Geometry import Geometry
-
 
 PROP_VELOCITY_MIN_FACTOR: float = 0.1
 MAX_VELOCITY: float = 1.5
 ANGLE_EPSILON: float = 0.1
 ANGLE_KP: float = 5
 MIN_DIST_TO_PROP_VELOCITY: float = 720
+TARGET_TOLERANCE: float = 50  #margem de tolerância para considerar o alvo atingido (em milímetros)
 
 ADJUST_ANGLE_MIN_DIST: float = 50
 M_TO_MM: float = 1000.0
@@ -18,74 +16,63 @@ M_TO_MM: float = 1000.0
 
 class Navigation:
 
-  @staticmethod
-  def degrees_to_radians(degrees): #para fazer os cálculos trigonométricos, o valor em graus deve ser convertido para rad
-    return degrees * (math.pi / 180.0)
-  
-  @staticmethod
-  def radians_to_degrees(radians):    #o robô armazena o ângulo em graus
-    return radians * (180.0 / math.pi)
-  
-  @staticmethod
-  def global_to_local_velocity(vx, vy, theta):  #vx e vy globais: velocidades nos eixos x e y do campo
-    vx_local = vx * math.cos(theta) + vy * math.sin(theta)  #vx e vy locais: orientação no campo
-    vy_local = -vx * math.sin(theta) + vy * math.cos(theta)
-    return Point(vx_local, vy_local)
+    @staticmethod
+    def degrees_to_radians(degrees):  
+        return degrees * (math.pi / 180.0)
 
-  @staticmethod
-  def map_value(value, lLower, lHigher, rLower, rHigher):
-    if (lHigher - lLower) == 0:
-      return
-    
-    return ((value - lLower) * (rHigher - rLower) / (lHigher - lLower) + rLower)
+    @staticmethod
+    def radians_to_degrees(radians):  
+        return radians * (180.0 / math.pi)
 
-  @staticmethod
-  def goToPoint(robot: Robot, target: Point):
-    target = Point(target.x * M_TO_MM, target.y * M_TO_MM)
-    robot_position = Point(robot.x * M_TO_MM, robot.y * M_TO_MM)
-    robot_angle = Navigation.degrees_to_radians(Geometry.normalize_angle(robot.theta, 0, 180))
+    @staticmethod
+    def global_to_local_velocity(vx, vy, theta): 
+        vx_local = vx * math.cos(theta) + vy * math.sin(theta)
+        vy_local = -vx * math.sin(theta) + vy * math.cos(theta)
+        return Point(vx_local, vy_local)
 
-    max_velocity = MAX_VELOCITY
-    distance_to_target = robot_position.dist_to(target)
-    kp = ANGLE_KP
+    @staticmethod
+    def map_value(value, lLower, lHigher, rLower, rHigher):
+        if (lHigher - lLower) == 0:
+            return
+        return ((value - lLower) * (rHigher - rLower) / (lHigher - lLower) + rLower)
 
-    # Use proportional speed to decelerate when getting close to desired target
-    proportional_velocity_factor = PROP_VELOCITY_MIN_FACTOR
-    min_proportional_distance = MIN_DIST_TO_PROP_VELOCITY
+    @staticmethod
+    def goToPoint(robot: Robot, target: Point):
+        #cnverte posição do alvo e robô para milímetros
+        target = Point(target.x * M_TO_MM, target.y * M_TO_MM)
+        robot_position = Point(robot.x * M_TO_MM, robot.y * M_TO_MM)
+        robot_angle = Navigation.degrees_to_radians(Geometry.normalize_angle(robot.theta, 0, 180))
 
-    if distance_to_target <= min_proportional_distance:
-      max_velocity = max_velocity * Navigation.map_value(distance_to_target, 0.0, min_proportional_distance, proportional_velocity_factor, 1.0)
+        max_velocity = MAX_VELOCITY
+        distance_to_target = robot_position.dist_to(target)
+        kp = ANGLE_KP
 
-    target_angle = (target - robot_position).angle()
-    d_theta = Geometry.smallest_angle_diff(target_angle, robot_angle)
+        #verifica se o robô está próximo o suficiente do alvo
+        if distance_to_target <= TARGET_TOLERANCE:
+            print(f"Target reached: {target} (distance: {distance_to_target})")
+            return Point(0.0, 0.0), 0.0
 
-    if distance_to_target > ADJUST_ANGLE_MIN_DIST:
-      v_angle = Geometry.abs_smallest_angle_diff(math.pi - ANGLE_EPSILON, d_theta)
+        #reduz a velocidade proporcionalmente ao se aproximar do alvo
+        proportional_velocity_factor = PROP_VELOCITY_MIN_FACTOR
+        min_proportional_distance = MIN_DIST_TO_PROP_VELOCITY
 
-      v_proportional = v_angle * (max_velocity / (math.pi - ANGLE_EPSILON))
-      global_final_velocity = Geometry.from_polar(v_proportional, target_angle)
-      target_velocity = Navigation.global_to_local_velocity(global_final_velocity.x, global_final_velocity.y, robot_angle)
+        if distance_to_target <= min_proportional_distance:
+            max_velocity = max_velocity * Navigation.map_value(
+                distance_to_target, 0.1, min_proportional_distance, proportional_velocity_factor, 1.0
+            )
 
-      return target_velocity, -kp * d_theta
-    else:
-      return Point(0.0, 0.0), -kp * d_theta
-    
-  @staticmethod
-  def avoid_obstacle(robot: Robot, target: Point, obstacles: list[Point], min_dist: float) -> Point:
-        """Calcula um único ponto alternativo para desviar de obstáculos."""
-        robot_position = Point(robot.x, robot.y)
+        #calcula o ângulo em direção ao alvo
+        target_angle = (target - robot_position).angle()
+        d_theta = Geometry.smallest_angle_diff(target_angle, robot_angle)
 
-        for obstacle in obstacles:
-            distance = robot_position.dist_to(obstacle)
+        if distance_to_target > ADJUST_ANGLE_MIN_DIST:
+            #calcula a velocidade angular proporcional
+            v_angle = Geometry.abs_smallest_angle_diff(math.pi - ANGLE_EPSILON, d_theta)
+            v_proportional = v_angle * (max_velocity / (math.pi - ANGLE_EPSILON))
+            global_final_velocity = Geometry.from_polar(v_proportional, target_angle)
+            target_velocity = Navigation.global_to_local_velocity(global_final_velocity.x, global_final_velocity.y, robot_angle)
 
-            # Verifica se o obstáculo está muito próximo
-            if distance < min_dist:
-                # Calcula um ponto alternativo fixo
-                vector_to_obstacle = obstacle - robot_position
-                vector_perpendicular = Point(-vector_to_obstacle.y, vector_to_obstacle.x).normalize()
-
-                # Retorna um único ponto alternativo
-                return obstacle + vector_perpendicular * min_dist
-
-        # Sem obstáculos no caminho, retorna None
-        return None
+            return target_velocity, -kp * d_theta
+        else:
+            #ajusta posição e ângulo ao se aproximar do alvo
+            return Point(0.2, 0.0), -kp * d_theta
