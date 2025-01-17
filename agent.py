@@ -17,28 +17,27 @@ class ExampleAgent(BaseAgent):
         """
         for obstacle in obstacles:
             if target.dist_to(obstacle) < self.min_dist_obs:
-                #desloca o alvo para um ponto seguro próximo
                 direction = Point(target.x - obstacle.x, target.y - obstacle.y).normalize()
-                adjusted_target = Point(
-                    obstacle.x + direction.x * (self.min_dist_obs + 0.1),
-                    obstacle.y + direction.y * (self.min_dist_obs + 0.1),
-                )
+                adjusted_target = target
+                while any(adjusted_target.dist_to(obs) < self.min_dist_obs for obs in obstacles):
+                    adjusted_target = adjusted_target + direction * 0.1
                 print(f"Adjusted target from {target} to {adjusted_target} due to proximity to obstacle.")
                 return adjusted_target
+
         return target
 
     def decision(self):
-        #verifica se há alvos disponíveis
+    #verifica se há alvos disponíveis
         if not self.targets:
             print("No targets available. Stopping robot.")
             self.set_vel(Point(0.0, 0.0))
             self.set_angle_vel(0.0)
             return
 
-        #oosição atual do robô
+        #posição atual do robô
         robot_pos = Point(self.robot.x, self.robot.y)
 
-        # Verificar se o alvo foi alcançado
+        # verificaçào pra saber se o alvo foi alcançado
         if self.current_target and robot_pos.dist_to(self.current_target) < self.target_tolerance:
             if self.path:
                 self.current_target = self.path.pop(0)  #próximo ponto no caminho
@@ -60,6 +59,16 @@ class ExampleAgent(BaseAgent):
 
             obstacles = [Point(obstacle.x, obstacle.y) for obstacle in self.opponents.values()]
 
+            #verificação se tem um alvo muito próximo de um obstáculo
+            if any(target_pos.dist_to(obstacle) < self.min_dist_obs * 0.8 for obstacle in obstacles):
+                print("Target is too close to an obstacle. Prioritizing direct movement.")
+                #move diretamente em direção ao alvo com baixa velocidade
+                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, target_pos, self.min_dist_obs)
+                target_velocity = Point(target_velocity.x * 0.3, target_velocity.y * 0.3)  # Reduz velocidade
+                self.set_vel(target_velocity)
+                self.set_angle_vel(target_angle_velocity)
+                return
+
             #ajustar o alvo para evitar proximidade com obstáculos
             adjusted_target = self.adjust_target_if_near_obstacle(target_pos, obstacles)
 
@@ -76,7 +85,7 @@ class ExampleAgent(BaseAgent):
             if not self.path:
                 print("No valid path found. Moving directly towards adjusted target.")
                 #mover diretamente p alvo ajustado
-                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, adjusted_target)
+                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, adjusted_target, self.min_dist_obs)
                 self.set_vel(target_velocity)
                 self.set_angle_vel(target_angle_velocity)
                 return
@@ -88,7 +97,7 @@ class ExampleAgent(BaseAgent):
 
         #navega para o próximo ponto no caminho
         if self.current_target:
-            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target)
+            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target, self.min_dist_obs)
 
             #verifica se alcançou o ponto atual
             if robot_pos.dist_to(self.current_target) < 0.1:
@@ -103,6 +112,7 @@ class ExampleAgent(BaseAgent):
             print("Path completed. Waiting for next target.")
             self.set_vel(Point(0.0, 0.0))
             self.set_angle_vel(0.0)
+
 
     def post_decision(self):
         pass

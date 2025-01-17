@@ -37,7 +37,7 @@ class Navigation:
         return ((value - lLower) * (rHigher - rLower) / (lHigher - lLower) + rLower)
 
     @staticmethod
-    def goToPoint(robot: Robot, target: Point):
+    def goToPoint(robot: Robot, target: Point, min_dist_obs: float):
         #cnverte posição do alvo e robô para milímetros
         target = Point(target.x * M_TO_MM, target.y * M_TO_MM)
         robot_position = Point(robot.x * M_TO_MM, robot.y * M_TO_MM)
@@ -48,7 +48,7 @@ class Navigation:
         kp = ANGLE_KP
 
         #verifica se o robô está próximo o suficiente do alvo
-        if distance_to_target <= TARGET_TOLERANCE:
+        if distance_to_target <= max(TARGET_TOLERANCE, min_dist_obs * M_TO_MM * 0.5):
             print(f"Target reached: {target} (distance: {distance_to_target})")
             return Point(0.0, 0.0), 0.0
 
@@ -58,8 +58,9 @@ class Navigation:
 
         if distance_to_target <= min_proportional_distance:
             max_velocity = max_velocity * Navigation.map_value(
-                distance_to_target, 0.1, min_proportional_distance, proportional_velocity_factor, 1.0
+                distance_to_target, 0.01, min_proportional_distance, proportional_velocity_factor, 1.0
             )
+
 
         #calcula o ângulo em direção ao alvo
         target_angle = (target - robot_position).angle()
