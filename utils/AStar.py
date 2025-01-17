@@ -10,7 +10,7 @@ class AStar:
         return a.dist_to(b)
 
     @staticmethod
-    def neighbors(node: Point, grid_size: float, obstacles: list[Point], min_dist: float) -> list[Point]:
+    def neighbors(node: Point, grid_size: float, obstacles: list[Point], min_dist: float, goal: Point) -> list[Point]:
         """gera vizinhos válidos de um nó"""
         directions = [
             Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1),  #cima, baixo, esquerda, direita
@@ -22,8 +22,11 @@ class AStar:
             neighbor = Point(node.x + direction.x * grid_size, node.y + direction.y * grid_size)
 
             #verifica se está longe o suficiente de obstáculos
-            if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles):
+            """if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles):
+                neighbors.append(neighbor)"""
+            if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles) or neighbor.dist_to(goal) < grid_size:
                 neighbors.append(neighbor)
+
 
         return neighbors
 
@@ -46,7 +49,8 @@ class AStar:
             _, current = open_set.get()
 
             #verificar se alcançou o objetivo
-            if current.dist_to(goal) < grid_size:
+            #if current.dist_to(goal) < grid_size:
+            if current.dist_to(goal) < max(grid_size, min_dist * 0.5):
                 path = []
                 while current in came_from:
                     path.append(current)
@@ -55,7 +59,7 @@ class AStar:
                 return path
 
             #expande vizinhos
-            for neighbor in AStar.neighbors(current, grid_size, obstacles, min_dist):
+            for neighbor in AStar.neighbors(current, grid_size, obstacles, min_dist, goal):
                 tentative_g_score = g_score[current] + current.dist_to(neighbor)
 
                 if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
