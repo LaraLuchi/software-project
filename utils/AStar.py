@@ -6,12 +6,11 @@ import time
 class AStar:
     @staticmethod
     def heuristic(a: Point, b: Point) -> float:
-        """Heurística: distância euclidiana"""
         return a.dist_to(b)
 
     @staticmethod
     def neighbors(node: Point, grid_size: float, obstacles: list[Point], min_dist: float, goal: Point) -> list[Point]:
-        """gera vizinhos válidos de um nó"""
+        #era vizinhos válidos de um nó
         directions = [
             Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1),  #cima, baixo, esquerda, direita
             Point(1, 1), Point(-1, -1), Point(1, -1), Point(-1, 1)  #diagonais
@@ -32,7 +31,7 @@ class AStar:
 
     @staticmethod
     def search(start: Point, goal: Point, grid_size: float, obstacles: list[Point], min_dist: float, max_time: float = 1.0) -> list[Point]:
-        """Executa o algoritmo A*"""
+        #executa o algoritmo A*
         start_time = time.time()
         open_set = PriorityQueue()
         open_set.put((0, start))
@@ -49,7 +48,7 @@ class AStar:
             _, current = open_set.get()
 
             #verificar se alcançou o objetivo
-            #if current.dist_to(goal) < grid_size:
+            """if current.dist_to(goal) < grid_size:"""
             if current.dist_to(goal) < max(grid_size, min_dist * 0.5):
                 path = []
                 while current in came_from:
@@ -73,7 +72,7 @@ class AStar:
 
     @staticmethod
     def smooth_path(path: list[Point], obstacles: list[Point], min_dist: float) -> list[Point]:
-        """suaviza o caminho gerado pelo A*"""
+        #suaviza o caminho gerado pelo A*
         if not path:
             return []
 
@@ -87,7 +86,7 @@ class AStar:
 
     @staticmethod
     def line_collides(start: Point, end: Point, obstacles: list[Point], min_dist: float) -> bool:
-        """verifica se um segmento de linha colide com algum obstáculo"""
+        #verifica se um segmento de linha colide com algum obstáculo
         for obstacle in obstacles:
             distance = AStar.point_to_line_distance(start, end, obstacle)
             if distance < min_dist:
@@ -96,7 +95,7 @@ class AStar:
 
     @staticmethod
     def point_to_line_distance(start: Point, end: Point, point: Point) -> float:
-        """calcula a distância de um ponto a uma linha"""
+        #calcula a distância de um ponto a uma linha"""
         numerator = abs((end.y - start.y) * point.x - (end.x - start.x) * point.y + end.x * start.y - end.y * start.x)
         denominator = ((end.y - start.y) ** 2 + (end.x - start.x) ** 2) ** 0.5
         return numerator / denominator

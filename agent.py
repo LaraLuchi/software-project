@@ -10,24 +10,30 @@ class ExampleAgent(BaseAgent):
         self.target_tolerance = target_tolerance  #tolerância para considerar o alvo atingido
         self.path = []  #caminho calculado pelo A*
         self.current_target = None  #próximo ponto no caminho
+        self.critical_obstacle = None  #obstáculo crítico próximo ao alvo
+        self.in_critical_zone = False  #estado: está na zona crítica
+
 
     def adjust_target_if_near_obstacle(self, target: Point, obstacles: list[Point]) -> Point:
         """
-        Ajusta o alvo para o ponto mais próximo seguro caso esteja muito próximo de um obstáculo.
+        Método para ajustar o alvo para evitar proximidade com obstáculos:
+        se o alvo estiver muito próximo a um obstáculo, desloca o alvo para uma posição segura.
         """
         for obstacle in obstacles:
             if target.dist_to(obstacle) < self.min_dist_obs:
+                #calcula a direção pra afastar o alvo do obstáculo
                 direction = Point(target.x - obstacle.x, target.y - obstacle.y).normalize()
-                adjusted_target = target
-                while any(adjusted_target.dist_to(obs) < self.min_dist_obs for obs in obstacles):
-                    adjusted_target = adjusted_target + direction * 0.1
-                print(f"Adjusted target from {target} to {adjusted_target} due to proximity to obstacle.")
+                adjusted_target = Point(
+                    obstacle.x + direction.x * (self.min_dist_obs + 0.1),
+                    obstacle.y + direction.y * (self.min_dist_obs + 0.1),
+                )
+                print(f"Adjusted target from {target} to {adjusted_target} due to proximity to obstacle {obstacle}.")
                 return adjusted_target
-
         return target
 
+
     def decision(self):
-    #verifica se há alvos disponíveis
+        #verifica se há alvos disponíveis
         if not self.targets:
             print("No targets available. Stopping robot.")
             self.set_vel(Point(0.0, 0.0))
@@ -36,82 +42,58 @@ class ExampleAgent(BaseAgent):
 
         #posição atual do robô
         robot_pos = Point(self.robot.x, self.robot.y)
+        target_pos = self.targets[0]
 
-        # verificaçào pra saber se o alvo foi alcançado
-        if self.current_target and robot_pos.dist_to(self.current_target) < self.target_tolerance:
-            if self.path:
-                self.current_target = self.path.pop(0)  #próximo ponto no caminho
-            else:
-                print(f"Target reached: {self.targets[0]}")
-                self.targets.pop(0)  #remove o alvo atingido
-                self.current_target = None
-
-        #calcular novo caminho se necessário
-        if not self.path or not self.current_target:
-            if not self.targets:
-                print("All targets reached.")
-                self.set_vel(Point(0.0, 0.0))
-                self.set_angle_vel(0.0)
-                return
-
-            target_pos = self.targets[0]
-            print(f"New target acquired: {target_pos}")
-
-            obstacles = [Point(obstacle.x, obstacle.y) for obstacle in self.opponents.values()]
-
-            #verificação se tem um alvo muito próximo de um obstáculo
-            if any(target_pos.dist_to(obstacle) < self.min_dist_obs * 0.8 for obstacle in obstacles):
-                print("Target is too close to an obstacle. Prioritizing direct movement.")
-                #move diretamente em direção ao alvo com baixa velocidade
-                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, target_pos, self.min_dist_obs)
-                target_velocity = Point(target_velocity.x * 0.3, target_velocity.y * 0.3)  # Reduz velocidade
-                self.set_vel(target_velocity)
-                self.set_angle_vel(target_angle_velocity)
-                return
-
-            #ajustar o alvo para evitar proximidade com obstáculos
-            adjusted_target = self.adjust_target_if_near_obstacle(target_pos, obstacles)
-
-            #calcular o caminho com A*
-            self.path = AStar.search(
-                start=robot_pos,
-                goal=adjusted_target,
-                grid_size=0.2,
-                obstacles=obstacles,
-                min_dist=self.min_dist_obs,
-                max_time=0.5,
-            )
-
-            if not self.path:
-                print("No valid path found. Moving directly towards adjusted target.")
-                #mover diretamente p alvo ajustado
-                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, adjusted_target, self.min_dist_obs)
-                self.set_vel(target_velocity)
-                self.set_angle_vel(target_angle_velocity)
-                return
-
-            #suaviza o caminho para melhorar os movimentos
-            self.path = AStar.smooth_path(self.path, obstacles, self.min_dist_obs)
-            print(f"Path calculated: {self.path}")
-            self.current_target = self.path.pop(0)
-
-        #navega para o próximo ponto no caminho
-        if self.current_target:
-            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target, self.min_dist_obs)
-
-            #verifica se alcançou o ponto atual
-            if robot_pos.dist_to(self.current_target) < 0.1:
-                if self.path:
-                    self.current_target = self.path.pop(0)
-                else:
-                    self.current_target = None  #concluir o caminho
-
-            self.set_vel(target_velocity)
-            self.set_angle_vel(target_angle_velocity)
-        else:
-            print("Path completed. Waiting for next target.")
+        #verificar se o alvo foi alcançado
+        if robot_pos.dist_to(target_pos) < self.target_tolerance:
+            print(f"Target reached: {target_pos}")
+            self.targets.pop(0)  #remove o alvo que já foi alcançado
             self.set_vel(Point(0.0, 0.0))
             self.set_angle_vel(0.0)
+            return
+
+        #identificar se está na zona crítica
+        obstacles = [Point(obstacle.x, obstacle.y) for obstacle in self.opponents.values()]
+        in_critical_zone = any(
+            target_pos.dist_to(obstacle) < self.min_dist_obs * 0.8 for obstacle in obstacles
+        ) and robot_pos.dist_to(target_pos) < self.min_dist_obs * 1.5
+
+        #tratamento para zona crítica!
+        if in_critical_zone:
+            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, target_pos, self.min_dist_obs)
+            #reduz velocidade para que a colisão seja leve
+            target_velocity = Point(target_velocity.x * 0.3, target_velocity.y * 0.3)
+            self.set_vel(target_velocity)
+            self.set_angle_vel(target_angle_velocity)
+            return
+
+        #fora da zona crítica
+        self.path = AStar.search(
+            start=robot_pos,
+            goal=target_pos,
+            grid_size=0.2,
+            obstacles=obstacles,
+            min_dist=self.min_dist_obs,
+            max_time=0.5,
+        )
+
+        if not self.path:
+            print("No valid path found. Moving directly towards target.")
+            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, target_pos, self.min_dist_obs)
+            self.set_vel(target_velocity)
+            self.set_angle_vel(target_angle_velocity)
+            return
+
+        #suaviza o caminho e vai para o próximo ponto
+        self.path = AStar.smooth_path(self.path, obstacles, self.min_dist_obs)
+        self.current_target = self.path.pop(0)
+
+        target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target, self.min_dist_obs)
+        self.set_vel(target_velocity)
+        self.set_angle_vel(target_angle_velocity)
+
+
+
 
 
     def post_decision(self):
