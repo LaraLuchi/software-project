@@ -34,3 +34,9 @@ class Point(NamedTuple):
     
     def normalize(self):
         return self / self.length()
+    
+
+
+
+
+        
