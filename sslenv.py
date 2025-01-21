@@ -11,6 +11,8 @@ from random_agent import RandomAgent
 import random
 import pygame
 from utils.CLI import Difficulty
+from task_assignment import TaskAssignment
+
 
 class SSLExampleEnv(SSLBaseEnv):
     def __init__(self, render_mode="human", difficulty=Difficulty.EASY):
@@ -54,27 +56,27 @@ class SSLExampleEnv(SSLBaseEnv):
 
 
     def _get_commands(self, actions):
-        # Keep only the last M target points
+        #atualização dos alvos visíveis
         for target in self.targets:
             if target not in self.all_points:
                 self.all_points.push(target)
-                
-        # Visible path drawing control
+
+        #atualizar os caminhos percorridos pelos robôs
         for i in self.my_agents:
             self.robots_paths[i].push(Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y))
 
-        # Check if the robot is close to the target
+        #verifica se algum robô alcançou seu alvo
         for j in range(len(self.targets) - 1, -1, -1):
             for i in self.my_agents:
                 if Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y).dist_to(self.targets[j]) < self.min_dist:
                     self.targets.pop(j)
                     break
-        
-        # Check if there are no more targets
+
+        #reduz as rodadas restantes se não houver mais alvos
         if len(self.targets) == 0:
             self.rounds -= 1
 
-        # Finish the phase and increase the number of targets for the next phase
+        #finalizar a fase e adicionar mais robôs/alvos para a próxima rodada
         if self.rounds == 0:
             self.rounds = self.max_rounds
             if self.targets_per_round < self.max_targets:
@@ -82,40 +84,42 @@ class SSLExampleEnv(SSLBaseEnv):
                 self.blue_agents.pop(len(self.my_agents))
                 self.my_agents[len(self.my_agents)] = ExampleAgent(len(self.my_agents), False)
 
-        # Generate new targets
+        #gerar novos alvos se não houver mais
         if len(self.targets) == 0:
             for i in range(self.targets_per_round):
                 self.targets.append(Point(self.x(), self.y()))
-        
-        obstacles = {id: robot for id, robot in self.frame.robots_blue.items()}
-        for i in range(0, self.n_robots_yellow):
-            obstacles[i + self.n_robots_blue] = self.frame.robots_yellow[i]
-        teammates = {id: self.frame.robots_blue[id] for id in self.my_agents.keys()}
 
-        remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
+        #corrigir as posições dos robôs para que sejam objetos da classe Point
+        robot_positions = [Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y) for i in self.my_agents.keys()]
 
+        #atribuir tarefas aos robôs
+        assignments = TaskAssignment.assign_tasks(
+            robots=robot_positions,
+            targets=self.targets,
+            obstacles = [Point(robot.x, robot.y) for robot in self.frame.robots_blue.values()],
+            grid_size=0.2,
+            min_dist=self.min_dist
+        )
+
+        #atualiza os alvos de cada robô com base na atribuição
+        for robot_id, target_index in assignments.items():
+            self.my_agents[robot_id].targets = [self.targets[target_index]]
+
+        #geerar ações para os robôs
         myActions = []
         for i in self.my_agents.keys():
-            action = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets)
+            action = self.my_agents[i].step(
+                self.frame.robots_blue[i],
+                {id: robot for id, robot in self.frame.robots_blue.items() if id != i},
+                self.my_agents,
+                self.targets
+            )
             myActions.append(action)
 
-        others_actions = []
-        if self.DYNAMIC_OBSTACLES:
-            for i in self.blue_agents.keys():
-                random_target = []
-                if random.uniform(0.0, 1.0) < self.gen_target_prob:
-                    random_target.append(Point(x=self.x(), y=self.y()))
-                    
-                others_actions.append(self.blue_agents[i].step(self.frame.robots_blue[i], obstacles, dict(), random_target, True))
+        #retornar ações
+        return myActions
 
-            for i in self.yellow_agents.keys():
-                random_target = []
-                if random.uniform(0.0, 1.0) < self.gen_target_prob:
-                    random_target.append(Point(x=self.x(), y=self.y()))
 
-                others_actions.append(self.yellow_agents[i].step(self.frame.robots_yellow[i], obstacles, dict(), random_target, True))
-
-        return myActions + others_actions
 
     def _calculate_reward_and_done(self):
         return 0, False

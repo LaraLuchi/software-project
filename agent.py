@@ -68,6 +68,13 @@ class ExampleAgent(BaseAgent):
             return
 
         #fora da zona crítica
+        if not all(isinstance(obstacle, Point) for obstacle in obstacles):
+            raise ValueError("Todos os obstáculos devem ser instâncias da classe Point.")
+        
+        #if not isinstance(goal, Point):
+            #raise ValueError("O objetivo deve ser uma instância da classe Point.")
+
+
         self.path = AStar.search(
             start=robot_pos,
             goal=target_pos,
