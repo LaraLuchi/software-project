@@ -4,6 +4,7 @@ from utils.Point import Point
 from utils.AStar import AStar
 from hungarian_algorithm import Hungarian
 import numpy as np
+import time
 
 class ExampleAgent(BaseAgent):
     def __init__(self, id=0, yellow=False, min_dist_obs=0.3, target_tolerance=0.15):
@@ -96,28 +97,34 @@ class ExampleAgent(BaseAgent):
 
     @staticmethod
     def assign_targets_hungarian(robots: list[Point], targets: list[Point]) -> dict[int, int]:
-        """
-        Atribui alvos para robôs usando o algoritmo Húngaro.
-        Args:
-            robots (list[Point]): Posições dos robôs.
-            targets (list[Point]): Posições dos alvos.
-        Returns:
-            dict[int, int]: Um dicionário onde as chaves são índices de robôs e os valores são índices dos alvos.
-        """
-        n_robots = len(robots)
-        n_targets = len(targets)
+        start_time = time.time()  # início da medição
+
+        n_robots, n_targets = len(robots), len(targets)
 
         #criação da matriz de custo baseada na distância euclidiana
         cost_matrix = np.zeros((n_robots, n_targets))
         for i, robot in enumerate(robots):
             for j, target in enumerate(targets):
-                cost_matrix[i, j] = robot.dist_to(target)
+                cost_matrix[i][j] = robot.dist_to(target)
 
-        #resolução do problema de atribuição com o algoritmo Húngaro
+        cost_calc_time = time.time()
+        print(f"Tempo para calcular a matriz de custo: {cost_calc_time - start_time:.4f}s")
+
+        #solução com o algoritmo Húngaro
         assignments = Hungarian.solve(cost_matrix)
 
-        #cnversão da lista de pares em um dicionário
-        assignment_dict = {robot_idx: target_idx for robot_idx, target_idx in assignments}
+        solve_time = time.time()
+        print(f"Tempo para resolver o algoritmo Húngaro: {solve_time - cost_calc_time:.4f}s")
+        print(f"Tempo total de atribuição: {solve_time - start_time:.4f}s")
+
+        #garante que a atribuição é válida e exclusiva
+        assigned_targets = set()
+        assignment_dict = {}
+        for robot_idx, target_idx in assignments:
+            if target_idx not in assigned_targets:
+                assignment_dict[robot_idx] = target_idx
+                assigned_targets.add(target_idx)
+
         return assignment_dict
 
 
