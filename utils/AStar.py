@@ -5,50 +5,33 @@ import time
 
 class AStar:
     @staticmethod
-    def neighbors(node: Point, grid_size: float, obstacles: list[Point], min_dist: float, goal: Point) -> list[Point]:
-        """
-        Gera os vizinhos válidos de um nó, considerando os obstáculos e o objetivo.
-        """
-        # Verificar o tipo dos obstáculos e do objetivo
-        if not all(isinstance(obstacle, Point) for obstacle in obstacles):
-            raise ValueError("Todos os obstáculos devem ser instâncias da classe Point.")
-        if not isinstance(goal, Point):
-            raise ValueError("O objetivo deve ser uma instância da classe Point.")
+    def heuristic(a: Point, b: Point) -> float:
+        return a.dist_to(b)
 
+    @staticmethod
+    def neighbors(node: Point, grid_size: float, obstacles: list[Point], min_dist: float, goal: Point) -> list[Point]:
+        #era vizinhos válidos de um nó
         directions = [
-            Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1),  # Cima, baixo, esquerda, direita
-            Point(1, 1), Point(-1, -1), Point(1, -1), Point(-1, 1)  # Diagonais
+            Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1),  #cima, baixo, esquerda, direita
+            Point(1, 1), Point(-1, -1), Point(1, -1), Point(-1, 1)  #diagonais
         ]
         neighbors = []
 
         for direction in directions:
             neighbor = Point(node.x + direction.x * grid_size, node.y + direction.y * grid_size)
 
-            # Depuração: Verificar os valores dos vizinhos e dos obstáculos
-            print(f"Checking neighbor: {neighbor}")
-            print(f"Obstacles: {obstacles}")
-            print(f"Goal: {goal}")
-
-            # Verificar se está longe o suficiente de obstáculos ou próximo ao objetivo
+            #verifica se está longe o suficiente de obstáculos
+            """if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles):
+                neighbors.append(neighbor)"""
             if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles) or neighbor.dist_to(goal) < grid_size:
                 neighbors.append(neighbor)
 
+
         return neighbors
-    
-    @staticmethod
-    def heuristic(a: Point, b: Point) -> float:
-        return a.dist_to(b)
-
-
 
     @staticmethod
     def search(start: Point, goal: Point, grid_size: float, obstacles: list[Point], min_dist: float, max_time: float = 1.0) -> list[Point]:
         #executa o algoritmo A*
-
-        if not isinstance(goal, Point):
-                raise ValueError("O objetivo deve ser uma instância da classe Point.")
-
-
         start_time = time.time()
         open_set = PriorityQueue()
         open_set.put((0, start))

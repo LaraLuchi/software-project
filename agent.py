@@ -2,6 +2,8 @@ from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
 from utils.Point import Point
 from utils.AStar import AStar
+from hungarian_algorithm import Hungarian
+import numpy as np
 
 class ExampleAgent(BaseAgent):
     def __init__(self, id=0, yellow=False, min_dist_obs=0.3, target_tolerance=0.15):
@@ -68,13 +70,6 @@ class ExampleAgent(BaseAgent):
             return
 
         #fora da zona crítica
-        if not all(isinstance(obstacle, Point) for obstacle in obstacles):
-            raise ValueError("Todos os obstáculos devem ser instâncias da classe Point.")
-        
-        #if not isinstance(goal, Point):
-            #raise ValueError("O objetivo deve ser uma instância da classe Point.")
-
-
         self.path = AStar.search(
             start=robot_pos,
             goal=target_pos,
@@ -98,6 +93,32 @@ class ExampleAgent(BaseAgent):
         target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target, self.min_dist_obs)
         self.set_vel(target_velocity)
         self.set_angle_vel(target_angle_velocity)
+
+    @staticmethod
+    def assign_targets_hungarian(robots: list[Point], targets: list[Point]) -> dict[int, int]:
+        """
+        Atribui alvos para robôs usando o algoritmo Húngaro.
+        Args:
+            robots (list[Point]): Posições dos robôs.
+            targets (list[Point]): Posições dos alvos.
+        Returns:
+            dict[int, int]: Um dicionário onde as chaves são índices de robôs e os valores são índices dos alvos.
+        """
+        n_robots = len(robots)
+        n_targets = len(targets)
+
+        #criação da matriz de custo baseada na distância euclidiana
+        cost_matrix = np.zeros((n_robots, n_targets))
+        for i, robot in enumerate(robots):
+            for j, target in enumerate(targets):
+                cost_matrix[i, j] = robot.dist_to(target)
+
+        #resolução do problema de atribuição com o algoritmo Húngaro
+        assignments = Hungarian.solve(cost_matrix)
+
+        #cnversão da lista de pares em um dicionário
+        assignment_dict = {robot_idx: target_idx for robot_idx, target_idx in assignments}
+        return assignment_dict
 
 
 
