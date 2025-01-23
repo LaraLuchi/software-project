@@ -54,6 +54,11 @@ class SSLExampleEnv(SSLBaseEnv):
 
 
     def _get_commands(self, actions):
+
+        for target in self.targets:
+            if target not in self.all_points:
+                self.all_points.push(target)
+
         """
         Método para gerar comandos dos robôs baseado em suas atribuições de alvos.
         """
