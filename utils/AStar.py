@@ -1,7 +1,7 @@
 from queue import PriorityQueue
 from utils.Point import Point
 import time
-
+import logging
 
 class AStar:
     @staticmethod
@@ -10,54 +10,48 @@ class AStar:
 
     @staticmethod
     def neighbors(node: Point, grid_size: float, obstacles: list[Point], min_dist: float, goal: Point) -> list[Point]:
-        #era vizinhos válidos de um nó
         directions = [
-            Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1),  #cima, baixo, esquerda, direita
-            Point(1, 1), Point(-1, -1), Point(1, -1), Point(-1, 1)  #diagonais
+            Point(1, 0), Point(-1, 0), Point(0, 1), Point(0, -1)  # cima, baixo, esquerda, direita (remover diagonais)
         ]
         neighbors = []
 
         for direction in directions:
             neighbor = Point(node.x + direction.x * grid_size, node.y + direction.y * grid_size)
 
-            #verifica se está longe o suficiente de obstáculos
-            """if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles):
-                neighbors.append(neighbor)"""
-            if all(neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles) or neighbor.dist_to(goal) < grid_size:
+            if all(isinstance(obstacle, Point) and neighbor.dist_to(obstacle) > min_dist for obstacle in obstacles) or neighbor.dist_to(goal) < grid_size:
                 neighbors.append(neighbor)
-
 
         return neighbors
 
     @staticmethod
-    def search(start: Point, goal: Point, grid_size: float, obstacles: list[Point], min_dist: float, max_time: float = 1.0) -> list[Point]:
-        #executa o algoritmo A*
+    def search(start: Point, goal: Point, grid_size: float, obstacles: list[Point], min_dist: float, max_time: float = 2.0) -> list[Point]:
         start_time = time.time()
         open_set = PriorityQueue()
         open_set.put((0, start))
         came_from = {}
         g_score = {start: 0}
         f_score = {start: AStar.heuristic(start, goal)}
+        iteration_count = 0
 
         while not open_set.empty():
-            #checa limite de tempo do algoritmo --> pra não rodar infinitamente e travar
+            iteration_start_time = time.time()
+
             if time.time() - start_time > max_time:
-                print("A* search timeout reached.")
+                logging.warning("A* search timeout reached.")
                 return []
 
             _, current = open_set.get()
+            iteration_count += 1
 
-            #verificar se alcançou o objetivo
-            """if current.dist_to(goal) < grid_size:"""
             if current.dist_to(goal) < max(grid_size, min_dist * 0.5):
                 path = []
                 while current in came_from:
                     path.append(current)
                     current = came_from[current]
                 path.reverse()
+                logging.info(f"A* search successful in {iteration_count} iterations.")
                 return path
 
-            #expande vizinhos
             for neighbor in AStar.neighbors(current, grid_size, obstacles, min_dist, goal):
                 tentative_g_score = g_score[current] + current.dist_to(neighbor)
 
@@ -67,27 +61,43 @@ class AStar:
                     f_score[neighbor] = tentative_g_score + AStar.heuristic(neighbor, goal)
                     open_set.put((f_score[neighbor], neighbor))
 
-        print("A* search failed to find a path")
+            iteration_time = time.time() - iteration_start_time
+            logging.info(f"Iteration {iteration_count} took {iteration_time:.4f} seconds")
+
+        logging.warning("A* search failed to find a path")
         return []
 
     @staticmethod
     def smooth_path(path: list[Point], obstacles: list[Point], min_dist: float) -> list[Point]:
-        #suaviza o caminho gerado pelo A*
         if not path:
             return []
 
         smoothed_path = [path[0]]
-
         for i in range(1, len(path)):
             if not AStar.line_collides(smoothed_path[-1], path[i], obstacles, min_dist):
                 smoothed_path.append(path[i])
 
-        return smoothed_path
+        final_path = [smoothed_path[0]]
+        for i in range(1, len(smoothed_path) - 1):
+            mid_point = Point(
+                (smoothed_path[i].x + smoothed_path[i + 1].x) / 2,
+                (smoothed_path[i].y + smoothed_path[i + 1].y) / 2
+            )
+            if not AStar.line_collides(final_path[-1], mid_point, obstacles, min_dist):
+                final_path.append(mid_point)
+
+            final_path.append(smoothed_path[i])
+
+        final_path.append(smoothed_path[-1])
+
+        return final_path
 
     @staticmethod
     def line_collides(start: Point, end: Point, obstacles: list[Point], min_dist: float) -> bool:
-        #verifica se um segmento de linha colide com algum obstáculo
         for obstacle in obstacles:
+            if not isinstance(obstacle, Point):
+                logging.warning(f"Obstacle is not a Point: {obstacle}")
+                continue
             distance = AStar.point_to_line_distance(start, end, obstacle)
             if distance < min_dist:
                 return True
@@ -95,7 +105,10 @@ class AStar:
 
     @staticmethod
     def point_to_line_distance(start: Point, end: Point, point: Point) -> float:
-        #calcula a distância de um ponto a uma linha"""
+        assert isinstance(start, Point), f"start is not a Point: {start}"
+        assert isinstance(end, Point), f"end is not a Point: {end}"
+        assert isinstance(point, Point), f"point is not a Point: {point}"
+
         numerator = abs((end.y - start.y) * point.x - (end.x - start.x) * point.y + end.x * start.y - end.y * start.x)
         denominator = ((end.y - start.y) ** 2 + (end.x - start.x) ** 2) ** 0.5
         return numerator / denominator
