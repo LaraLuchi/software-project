@@ -95,7 +95,7 @@ class AStar:
 
     @staticmethod
     def point_to_line_distance(start: Point, end: Point, point: Point) -> float:
-        #calcula a distância de um ponto a uma linha"""
+        #calcula a distância de um ponto a uma linha
         numerator = abs((end.y - start.y) * point.x - (end.x - start.x) * point.y + end.x * start.y - end.y * start.x)
         denominator = ((end.y - start.y) ** 2 + (end.x - start.x) ** 2) ** 0.5
         return numerator / denominator

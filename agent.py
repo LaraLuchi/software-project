@@ -2,7 +2,7 @@ from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
 from utils.Point import Point
 from utils.AStar import AStar
-
+from utils.task_assignment import closest_task_assignment
 
 def greedy_task_assignment(robot_positions, target_positions):
     """
@@ -67,14 +67,14 @@ class ExampleAgent(BaseAgent):
             self.set_angle_vel(0.0)
             return
 
-        #obtem as posições atuais dos robôs e dos alvos
+        #obtem as posições dos robôs (atualmente, apenas este robô) e dos alvos
         robot_positions = [Point(self.robot.x, self.robot.y)]
         target_positions = self.targets
 
-        #realiza a alocação de tarefas com exclusividade de alvos
-        assignments = greedy_task_assignment(robot_positions, target_positions)
+        #realiza a atribuição de tarefas com base no alvo mais próximo
+        assignments = closest_task_assignment(robot_positions, target_positions)
 
-        #verifica se este robô tem um alvo atribuído
+        #verifica se este robô recebeu um alvo
         if 0 not in assignments:  # O ID do robô atual é 0
             print("No target assigned to this robot.")
             self.set_vel(Point(0.0, 0.0))
@@ -118,6 +118,7 @@ class ExampleAgent(BaseAgent):
         target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target, self.min_dist_obs)
         self.set_vel(target_velocity)
         self.set_angle_vel(target_angle_velocity)
+
 
 
 

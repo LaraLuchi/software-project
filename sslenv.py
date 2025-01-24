@@ -58,7 +58,7 @@ class SSLExampleEnv(SSLBaseEnv):
         robot_positions = [Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y) for i in self.my_agents]
         target_positions = self.targets
 
-        #keep only the last M target points
+        # Keep only the last M target points
         for target in self.targets:
             if target not in self.all_points:
                 self.all_points.push(target)
@@ -100,7 +100,7 @@ class SSLExampleEnv(SSLBaseEnv):
 
         myActions = []
         for i in self.my_agents.keys():
-            # chamar decision com os argumentos necessários
+            # chama o decision com os argumentos necessários
             action = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, target_positions, robot_positions)
             myActions.append(action)
 
