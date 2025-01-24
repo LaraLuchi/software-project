@@ -2,9 +2,37 @@ from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
 from utils.Point import Point
 from utils.AStar import AStar
-from hungarian_algorithm import Hungarian
-import numpy as np
-import time
+
+
+def greedy_task_assignment(robot_positions, target_positions):
+    """
+    Distribui alvos entre os robôs usando uma abordagem gananciosa baseada na distância,
+    garantindo que cada alvo seja atribuído a apenas um robô.
+    :param robot_positions: Lista de posições dos robôs.
+    :param target_positions: Lista de posições dos alvos.
+    :return: Um dicionário {robô_id: alvo_id}.
+    """
+    assignments = {}
+    assigned_targets = set()
+
+    #calcula as distâncias entre cada robô e cada alvo
+    distances = [
+        (robot_id, target_id, robot_positions[robot_id].dist_to(target_positions[target_id]))
+        for robot_id in range(len(robot_positions))
+        for target_id in range(len(target_positions))
+    ]
+
+    #ordena os pares (robô, alvo) pela distância mais próxima primeiro
+    distances.sort(key=lambda x: x[2])
+
+    #realiza a alocação gananciosa, garantindo que cada alvo seja atribuído apenas uma vez
+    for robot_id, target_id, _ in distances:
+        if robot_id not in assignments and target_id not in assigned_targets:
+            assignments[robot_id] = target_id
+            assigned_targets.add(target_id)
+
+    return assignments
+
 
 class ExampleAgent(BaseAgent):
     def __init__(self, id=0, yellow=False, min_dist_obs=0.3, target_tolerance=0.15):
@@ -13,29 +41,25 @@ class ExampleAgent(BaseAgent):
         self.target_tolerance = target_tolerance  #tolerância para considerar o alvo atingido
         self.path = []  #caminho calculado pelo A*
         self.current_target = None  #próximo ponto no caminho
-        self.critical_obstacle = None  #obstáculo crítico próximo ao alvo
-        self.in_critical_zone = False  #estado: está na zona crítica
-
 
     def adjust_target_if_near_obstacle(self, target: Point, obstacles: list[Point]) -> Point:
         """
-        Método para ajustar o alvo para evitar proximidade com obstáculos:
-        se o alvo estiver muito próximo a um obstáculo, desloca o alvo para uma posição segura.
+        Método para ajustar o alvo para evitar proximidade com obstáculos.
         """
         for obstacle in obstacles:
             if target.dist_to(obstacle) < self.min_dist_obs:
-                #calcula a direção pra afastar o alvo do obstáculo
                 direction = Point(target.x - obstacle.x, target.y - obstacle.y).normalize()
                 adjusted_target = Point(
                     obstacle.x + direction.x * (self.min_dist_obs + 0.1),
                     obstacle.y + direction.y * (self.min_dist_obs + 0.1),
                 )
-                print(f"Adjusted target from {target} to {adjusted_target} due to proximity to obstacle {obstacle}.")
                 return adjusted_target
         return target
 
-
     def decision(self):
+        """
+        Lógica de decisão para o agente.
+        """
         #verifica se há alvos disponíveis
         if not self.targets:
             print("No targets available. Stopping robot.")
@@ -43,34 +67,34 @@ class ExampleAgent(BaseAgent):
             self.set_angle_vel(0.0)
             return
 
-        #posição atual do robô
-        robot_pos = Point(self.robot.x, self.robot.y)
-        target_pos = self.targets[0]
+        #obtem as posições atuais dos robôs e dos alvos
+        robot_positions = [Point(self.robot.x, self.robot.y)]
+        target_positions = self.targets
 
-        #verificar se o alvo foi alcançado
-        if robot_pos.dist_to(target_pos) < self.target_tolerance:
-            print(f"Target reached: {target_pos}")
-            self.targets.pop(0)  #remove o alvo que já foi alcançado
+        #realiza a alocação de tarefas com exclusividade de alvos
+        assignments = greedy_task_assignment(robot_positions, target_positions)
+
+        #verifica se este robô tem um alvo atribuído
+        if 0 not in assignments:  # O ID do robô atual é 0
+            print("No target assigned to this robot.")
             self.set_vel(Point(0.0, 0.0))
             self.set_angle_vel(0.0)
             return
 
-        #identificar se está na zona crítica
-        obstacles = [Point(obstacle.x, obstacle.y) for obstacle in self.opponents.values()]
-        in_critical_zone = any(
-            target_pos.dist_to(obstacle) < self.min_dist_obs * 0.8 for obstacle in obstacles
-        ) and robot_pos.dist_to(target_pos) < self.min_dist_obs * 1.5
+        #obtem o alvo atribuído para este robô
+        target_pos = target_positions[assignments[0]]
 
-        #tratamento para zona crítica!
-        if in_critical_zone:
-            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, target_pos, self.min_dist_obs)
-            #reduz velocidade para que a colisão seja leve
-            target_velocity = Point(target_velocity.x * 0.3, target_velocity.y * 0.3)
-            self.set_vel(target_velocity)
-            self.set_angle_vel(target_angle_velocity)
+        #verifica se o alvo foi alcançado
+        robot_pos = Point(self.robot.x, self.robot.y)
+        if robot_pos.dist_to(target_pos) < self.target_tolerance:
+            print(f"Target reached: {target_pos}")
+            self.targets.remove(target_pos)  #remove o alvo alcançado
+            self.set_vel(Point(0.0, 0.0))
+            self.set_angle_vel(0.0)
             return
 
-        #fora da zona crítica
+        #planejamento do caminho usando A*
+        obstacles = [Point(obstacle.x, obstacle.y) for obstacle in self.opponents.values()]
         self.path = AStar.search(
             start=robot_pos,
             goal=target_pos,
@@ -94,40 +118,6 @@ class ExampleAgent(BaseAgent):
         target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, self.current_target, self.min_dist_obs)
         self.set_vel(target_velocity)
         self.set_angle_vel(target_angle_velocity)
-
-    @staticmethod
-    def assign_targets_hungarian(robots: list[Point], targets: list[Point]) -> dict[int, int]:
-        start_time = time.time()  # início da medição
-
-        n_robots, n_targets = len(robots), len(targets)
-
-        #criação da matriz de custo baseada na distância euclidiana
-        cost_matrix = np.zeros((n_robots, n_targets))
-        for i, robot in enumerate(robots):
-            for j, target in enumerate(targets):
-                cost_matrix[i][j] = robot.dist_to(target)
-
-        cost_calc_time = time.time()
-        print(f"Tempo para calcular a matriz de custo: {cost_calc_time - start_time:.4f}s")
-
-        #solução com o algoritmo Húngaro
-        assignments = Hungarian.solve(cost_matrix)
-
-        solve_time = time.time()
-        print(f"Tempo para resolver o algoritmo Húngaro: {solve_time - cost_calc_time:.4f}s")
-        print(f"Tempo total de atribuição: {solve_time - start_time:.4f}s")
-
-        #garante que a atribuição é válida e exclusiva
-        assigned_targets = set()
-        assignment_dict = {}
-        for robot_idx, target_idx in assignments:
-            if target_idx not in assigned_targets:
-                assignment_dict[robot_idx] = target_idx
-                assigned_targets.add(target_idx)
-
-        return assignment_dict
-
-
 
 
 
