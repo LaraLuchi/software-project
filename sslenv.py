@@ -11,12 +11,6 @@ from random_agent import RandomAgent
 import random
 import pygame
 from utils.CLI import Difficulty
-import logging
-import psutil
-import time
-
-# Configure logging
-logging.basicConfig(level=logging.INFO)
 
 class SSLExampleEnv(SSLBaseEnv):
     def __init__(self, render_mode="human", difficulty=Difficulty.EASY):
@@ -40,7 +34,7 @@ class SSLExampleEnv(SSLBaseEnv):
         self.all_points = FixedQueue(max(4, self.max_targets))
         self.robots_paths = [FixedQueue(40) for i in range(11)]
 
-        self.rounds = self.max_rounds  # because of the first round
+        self.rounds = self.max_rounds  ## because of the first round
         self.targets_per_round = 1
 
         self.my_agents = {0: ExampleAgent(0, False)}
@@ -60,18 +54,20 @@ class SSLExampleEnv(SSLBaseEnv):
 
 
     def _get_commands(self, actions):
-        start_time = time.time()
 
         for target in self.targets:
             if target not in self.all_points:
                 self.all_points.push(target)
 
+        """
+        Método para gerar comandos dos robôs baseado em suas atribuições de alvos.
+        """
         #coleta as posições atuais dos robôs
         robot_positions = [Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y) for i in self.my_agents.keys()]
 
         #verifica se há múltiplos robôs e alvos
         if len(robot_positions) > 0 and len(self.targets) > 0:
-            # realiza a atribuição de alvos usando o algoritmo Húngaro
+            # Realiza a atribuição de alvos usando o algoritmo Húngaro
             assignment = ExampleAgent.assign_targets_hungarian(robot_positions, self.targets)
 
             #atualiza os alvos de cada robô com base na atribuição
@@ -114,7 +110,7 @@ class SSLExampleEnv(SSLBaseEnv):
         #remove o robô atual da lista de obstáculos
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
 
-        # Comandos para os robôs controlados
+        #comandos para os robôs controlados
         myActions = []
         for robot_id in self.my_agents.keys():
             action = self.my_agents[robot_id].step(
@@ -142,16 +138,10 @@ class SSLExampleEnv(SSLBaseEnv):
 
                 others_actions.append(self.yellow_agents[i].step(self.frame.robots_yellow[i], obstacles, dict(), random_target, True))
 
-        total_time = time.time() - start_time
-        logging.info(f"Time taken for _get_commands: {total_time:.4f} seconds")
-
-        # MONITORAR USO DE CPU E MEMÓRIA !!! 
-        process = psutil.Process()
-        memory_info = process.memory_info()
-        logging.info(f"Memory usage: {memory_info.rss / (1024 * 1024):.2f} MB")
-        logging.info(f"CPU usage: {psutil.cpu_percent(interval=None):.2f}%")
-
+        #combina as ações dos robôs controlados e dos outros
         return myActions + others_actions
+
+
 
     def _calculate_reward_and_done(self):
         return 0, False

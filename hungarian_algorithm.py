@@ -4,11 +4,11 @@ class Hungarian:
     @staticmethod
     def solve(cost_matrix):
         """
-        Resolve o problema de atribuição usando o algoritmo Húngaro
-        Argumenta
-            cost_matrix (np.ndarray): Matriz de custo
-        Retorna:
-            list[tuple[int, int]]: Lista de pares (índice do robô, índice do alvo)
+        Resolve o problema de atribuição usando o algoritmo Húngaro.
+        Args:
+            cost_matrix (np.ndarray): Matriz de custo.
+        Returns:
+            list[tuple[int, int]]: Lista de pares (índice do robô, índice do alvo).
         """
         n, m = cost_matrix.shape
         row_mask = np.zeros(n, dtype=bool)
